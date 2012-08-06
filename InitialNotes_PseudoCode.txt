@@ -1,4 +1,4 @@
-Mitchell Lee
+Mitchell Van Lee
 Demand Side Management Pseudo-Code
 
 Code Inputs
