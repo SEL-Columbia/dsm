@@ -1,0 +1,174 @@
+Mitchell Lee
+Demand Side Management Pseudo-Code
+
+Code Inputs
+	minA =  #minimum amount of energy automatically allocated to each submeter
+	demand = array(8760,20) demand for each meter
+	supply = array(8760,1)  PV generated electricity 
+	dates = array(8760,6)   dates for which study is being made
+
+Code Outputs
+      supplyM = array(8760,20) <- The energy delived to each meter for each hour
+
+
+
+Pseudo Code
+   
+	HL = 336  #number of hours I want the histor of customers to be stored
+	H = zeros(336,20)
+	[r , c] = shape(dates)
+	[r2, c2] = shape(demand)
+	batCap = 
+	batMin = 
+	pvCap = 
+	minA = #minimum energy allocated for each submeter 
+	minAT = sum(minA*ones(1,c2))
+	supply =I_C/1000*pvCap
+
+   for ix = 1:r2
+   
+		# What to do before there is sufficient history.
+		# Everyone gets what they want until the battery 
+		# runs out
+		
+		if HL < ix 
+		batChar(ix+1) = batChar(ix) + supply(ix) + sum(demand(ix,:))
+			supplyM(ix,:) = demand(ix,:)
+			if batChar(ix+1) > batCap
+				batChar(ix+1) = batCap
+			elseif batChar(ix+1) < batMin
+				batChar(ix+1) = batMin
+				# Distributing remaining electricity
+				# Electricity distributed proportionally to energy request shapes
+				supplyM(ix,:) = supplyM(ix,:)/sum(supplyM(ix,:))*(batChar(ix)-batMin)
+		
+		# The history based algorithm will start on day HL + 1
+		# Once the sun begins to rise
+		elseif (HL< ix < (HL + 12)) and (supply == 0)
+		batChar(ix+1) = batChar(ix) + supply(ix) + sum(demand(ix,:))
+			supplyM(ix,:) = demand(ix,:)
+			if batChar(ix+1) > batCap
+				batChar(ix+1) = batCap
+			elseif batChar(ix+1) < batMin
+				batChar(ix+1) = batMin
+				# Distributing remaining electricity
+				# Electricity distributed proportionally to energy request shapes
+				supplyM(ix,:) = supplyM(ix,:)/sum(supplyM(ix,:))*(batChar(ix)-batMin)
+		
+		else
+			
+			# The energy supplied to each meter is equal
+			# to the demand at each meter. If this is not 
+			# true this section of code will correct it.
+			supplyM(ix,:) = demand(ix,:)
+			
+			# Calculate most recent 14 days of energy usage history
+			# with days starting at midnight
+			if dates(ix,4) == 1
+				H = supplyM((ix-336):336,:) 
+			
+			# If it is sunrise
+			if (supply(ix) !=0) and (supply(ix-1) = 0)
+				solDayStart = ix # start my solar day
+				jx = 1
+				batChar(ix+1) = batChar(ix) + supply(ix) + sum(demand(ix,:))
+				if batChar(ix+1) > batCap
+					batChar(ix+1) = batCap
+				elseif batChar(ix+1) < batMin
+					batChar(ix+1) = batMin
+					   ##Distributing remaining electricity accordingly
+					supplyM(ix,:) = supplyM(ix,:)/sum(supplyM(ix,:))*(batChar(ix)-batMin)
+				
+			# If it is during daylight hours energy restrictions are not in place.
+			# Limits will be settled once the sun goes down
+			elseif (supply(ix) !=0) and (supply(ix-1) != 0)
+				jx = jx + 1
+				batChar(ix+1) = batChar(ix) + supply(ix) + sum(demand(ix,:))
+				if batChar(ix+1) > batCap
+					batChar(ix+1) = batCap
+				elseif batChar(ix+1) < batMin
+					batChar(ix+1) = batMin
+				   ##Distributing remaining electricity accordingly
+					supplyM(ix) = supplyM(ix,:)/sum(supplyM(ix,:))*(batChar(ix)-batMin)
+		
+			
+			# The Sun just went down
+			# Square away all accounts so that excess capacity is allotted accordingly
+			elseif (supply(ix) == 0) and (supply(ix-1) != 0)
+				
+				# Calculate energy Generated for this day
+				HGD = sum(supply(solDayStart:ix)) # History of Generation for Day
+				
+				# if the daily generated capacity is greater than the
+				# combined minimum allocation for all meters do this.
+				if HGD >= minA*c2 
+					ERem = batChar(ix) - batMin #Energy Remaining
+					EUsed = supplyM(solDayStart:ix,:) #Energy Used
+					
+					# Net Energy above Minimum allotment 
+					# Remaining energy - (guaranteed energy - used guarenteed energy)
+					EBonus = ERem - (sum(minAT)-sum(sum(EUsed)))  
+					
+					#Individual Meter Allotments
+					# guaranteed energy + percentage of bonus weight by 
+					# amount of energy used by meter during H
+					ELim = minA.*ones(1,c2) + EBonus.*sum(H)/sum(sum(H)) 
+				
+				
+				# if the daily generated electricity is less than the
+				# combined minimum allocation for all meters 
+				# make the Energy Limit on all meters equal
+				
+				if HGD <= minA*c2
+					ERem = batChar(ix) - batMin #Energy Remaining
+					EUsed = supplyM(ix-jx:ix,:) #Energy Used
+					ELim =  HGD/c2*ones(1,c2)
+					
+				# shut off any meters that have surpassed energy limit
+				EUsedSum = sum(EUsed)
+				for kx = 1:c2
+					if EUsedSum(kx) > ELim(kx)
+						supplyM(ix,kx) = -999
+				
+				# Energy balance
+				batChar(ix+1) = batChar(ix) + supply(ix) + sum(demand(ix,:)*(supplyM(ix,:) != -999))
+				if batChar(ix+1) > batCap
+					batChar(ix+1) = batCap
+				elseif batChar(ix+1) < batMin
+					batChar(ix+1) = batMin
+					   
+					   ##Distributing remaining electricity accordingly
+						for kx = 1:c2
+							if supplyM(ix,kx) != -999
+								supplyM(ix,kx) = supplyM(ix,kx)/sum(supplyM(ix,:)!=-999)*(batChar(ix)-batMin)
+				
+			
+			# The sun is down and it has been down for at more than one hour
+			elseif	(supply(ix) == 0) and (supply(ix-1) == 0) 
+			
+				#	If the meter was shut off during the previous hour
+				#	the meter is still shut off
+				for kx = 1:c2
+					if supplyM(ix-1,kx) == -999
+						supplyM(ix,kx) = -999
+				
+				batChar(ix+1) = batChar(ix) + supply(ix) + sum(demand(ix,:)*(supplyM(ix,:) != -999))
+				if batChar(ix+1) > batCap
+					batChar(ix+1) = batCap
+				elseif batChar(ix+1) < batMin
+						batChar(ix+1) = batMin
+						##Distributing remaining electricity accordingly
+						for kx = 1:c2
+							if supplyM(ix,kx) != -999
+								supplyM(ix,kx) = supplyM(ix,kx)/sum(supplyM(ix,:)!=-999)*(batChar(ix)-batMin)
+					   
+				#	See if any meters have just fallen short
+				#	If they have fallen short, then turn them off
+				for kx = 1:c2
+					if sum(supplyM(solDayStart:ix)) >= ELim(1,kx)
+						supplyM(ix,kx) = -999
+				
+						
+			
+
+
