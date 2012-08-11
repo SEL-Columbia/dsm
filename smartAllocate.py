@@ -110,7 +110,7 @@ for ix in np.arange(1,r2):
 				#Individual Meter Allotments
 				# guaranteed energy + percentage of bonus weight by 
 				# amount of energy used by meter during H
-				ELim = minA.*ones(c2) + EBonus.*H.sum(axis=0)/sum(H) 
+				ELim = minA*ones(c2) + EBonus*H.sum(axis=0)/sum(H) 
 				
 			# if the daily generated electricity is less than the
 			# combined minimum allocation for all meters 
